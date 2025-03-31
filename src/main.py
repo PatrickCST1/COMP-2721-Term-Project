@@ -27,7 +27,7 @@ def display(enigma):
             for i in range(4):
                 display_peripheral.set_character(display[i], i)
             display_peripheral.draw()
-            sleep(0.1)
+            sleep(0.01)
 
 def led(enigma):
     gpio = [21, 20, 16, 12]
@@ -45,49 +45,82 @@ def led(enigma):
             elif char == "f" or (char == "b" and not datetime.now().microsecond // 100000 < 5):
                 GPIO.output(gpio[i], False)
 
-def reset(enigma):
+def recall(enigma, enigma_read):
     GPIO.setup(25, GPIO.IN)
+    sent = False
+    pre = False
     while True:
-        if not GPIO.input(25):
+        now = GPIO.input(25)
+        if pre and not now and not sent:
+            sent = True
             enigma.send(True)
+            print("reset - request")
+        if enigma_read.poll(0.001):
+            enigma_read.recv()
+            sent = False
+        pre = now
 
-def enigma(display, led):
-    led.send("bbbb")
-    print(f"Device: {keyboard.name}, {keyboard.phys}")
-    print("Listening for keyboard events...")
-    display.send("    ")
+def reset(enigma, enigma_read):
+    GPIO.setup(24, GPIO.IN)
+    sent = False
+    pre = False
+    while True:
+        now = GPIO.input(24)
+        if pre and not now and not sent:
+            sent = True
+            enigma.send(True)
+            print("reset - request")
+        if enigma_read.poll(0.001):
+            enigma_read.recv()
+            sent = False
+        pre = now
 
-    first_rotor_position = get_letter()
-    second_rotor_position =  get_letter()
-    third_rotor_position = get_letter()
+def enigma(display, led, reset, reset_read):
+    while True:
+        if reset.poll(0.001):
+            reset_read.send(True)
+            reset.recv()
+            print("reset")
+        led.send("ffff")
+        display.send("    ")
 
-    machine = EnigmaMachine(first_rotor_position, second_rotor_position, third_rotor_position)
-    machine.set_plugboard()
-    try:
-        for event in keyboard.read_loop():
-            if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
-                key = evdev.ecodes.KEY[event.code]  # Get key name
-                if event.value == 1 and key.startswith("KEY_") and len(key)==5:
-                    alphanumeric = key[-1]
-                    print(alphanumeric)
-                    if "A"<=alphanumeric<="Z":
-                        display.send(machine.encrypt(alphanumeric))
-                    else:
-                        display.send(alphanumeric)
-    except KeyboardInterrupt:
-        print("Keyboard reading stopped.")
+        led.send("bfff")
+        letter = get_letter(reset)
+        if not letter:
+            continue
+        first_rotor_position = ord(letter) - ord('A')
 
-def get_letter():
-    for event in keyboard.read_loop():
-        if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
+        led.send("nbff")
+        letter = get_letter(reset)
+        if not letter:
+            continue
+        second_rotor_position =  ord(letter) - ord('A')
+
+        led.send("nnbf")
+        letter = get_letter(reset)
+        if not letter:
+            continue
+        third_rotor_position = ord(letter) - ord('A')
+
+        led.send("nnnn")
+        machine = EnigmaMachine(first_rotor_position, second_rotor_position, third_rotor_position)
+        machine.set_plugboard()
+        while not reset.poll(0.001):
+            letter = get_letter(reset)
+            if not letter:
+                break
+            display.send(machine.encrypt(letter))
+
+def get_letter(reset):
+    while not reset.poll(0.001):
+        event = keyboard.read_one()
+        if event and event.type == evdev.ecodes.EV_KEY:  # Keyboard event
             key = evdev.ecodes.KEY[event.code]  # Get key name
             if event.value == 1 and key.startswith("KEY_") and len(key)==5:
                 alphanumeric = key[-1]
                 print(alphanumeric)
                 if "A"<=alphanumeric<="Z":
-                    return ord(alphanumeric) - ord('A')
-
-
+                    return alphanumeric
 
 if __name__ == "__main__":
     display_pipe, enigma_pipe_display = Pipe()
@@ -98,10 +131,12 @@ if __name__ == "__main__":
     led_process = Process(target=led, args=(led_pipe,))
     led_process.start()
 
-    enigma_process = Process(target=enigma, args=(enigma_pipe_display, enigma_pipe_led))
+    reset_pipe, enigma_pipe_reset = Pipe()
+    reset_read_pipe, enigma_pipe_reset_read = Pipe()
+    enigma_process = Process(target=enigma, args=(enigma_pipe_display, enigma_pipe_led, enigma_pipe_reset, enigma_pipe_reset_read))
     enigma_process.start()
 
-    reset_process = Process(target=reset, args=(enigma_process,))
+    reset_process = Process(target=reset, args=(reset_pipe, reset_read_pipe))
     reset_process.start()
 
     enigma_process.join()
