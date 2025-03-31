@@ -5,6 +5,7 @@ from datetime import datetime
 from multiprocessing import Process, Pipe
 import RPi.GPIO as GPIO
 from ht16k33 import HT16K33Segment14
+from EnigmaMachine import EnigmaMachine
 
 i2c = I2C(SCL, SDA)
 GPIO.setwarnings(False)
@@ -12,7 +13,7 @@ GPIO.setmode(GPIO.BCM)
 
 def display(enigma):
     display_peripheral = HT16K33Segment14(i2c, board=HT16K33Segment14.SPARKFUN_ALPHA)
-    display_peripheral.set_brightness(0)
+    display_peripheral.set_brightness(9)
     display_peripheral.clear()
     display_peripheral.draw()
     display = "    "
@@ -48,17 +49,15 @@ def reset(enigma):
             enigma.send(True)
 
 def enigma(display, led):
+    led.send("bbbb")
     while True:
         display.send("    ")
-        led.send("nnnn")
-        display.send("T")
-        sleep(1)
-        led.send("ffff")
-        display.send("H")
-        sleep(1)
-        led.send("bbbb")
-        display.send("E")
-        sleep(1)
+        machine = EnigmaMachine(0, 0, 0, 0, 0, 0)
+        machine.set_plugboard()
+        string = "APPLE"
+        for letter in string:
+            display.send(machine.encrypt(letter))
+            sleep(1)
 
 
 if __name__ == "__main__":

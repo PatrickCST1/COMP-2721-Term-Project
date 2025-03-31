@@ -61,9 +61,6 @@ class EnigmaMachine():
     def delete_plugboard_pair(self, first_letter, second_letter):
         self.plugboard.delete_pair(first_letter, second_letter)
 
-
-
-
 def main():
     machine = EnigmaMachine(0, 0, 0, 0, 0, 0)
     machine.set_plugboard()
