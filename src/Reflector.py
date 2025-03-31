@@ -14,8 +14,7 @@ class Reflector:
 
 
     def encrypt(self, letter, direction = 1):
-        letter_as_value = ord(letter) - ord('A')
-        converted_letter = letter_as_value
+        converted_letter = letter
 
         for wire in self.wires:
             if wire.is_connected(converted_letter, direction):
@@ -24,3 +23,4 @@ class Reflector:
                 letter_as_value = converted_letter_as_value
                 letter = chr(letter_as_value + ord('A'))
                 return letter
+

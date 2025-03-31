@@ -36,3 +36,9 @@ class Rotor:
     def get_position(self):
         return self.position
 
+    def set_posiiton(self, position):
+        self.position = position
+
+    def set_offset(self, offset):
+        self.offset = offset
+
