@@ -57,20 +57,11 @@ def enigma(display, led):
     print("Listening for keyboard events...")
     display.send("    ")
 
-    try:
-        for event in keyboard.read_loop():
-            if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
-                key = evdev.ecodes.KEY[event.code]  # Get key name
-                if event.value == 1 and key.startswith("KEY_") and len(key)==5:
-                    alphanumeric = key[-1]
-                    print(alphanumeric, end="")
-                    if "0" <= alphanumeric <= "9":
-                        display.send(alphanumeric)
-    except KeyboardInterrupt:
-        print("Keyboard reading stopped.")
+    first_rotor_position = get_letter()
+    second_rotor_position =  get_letter()
+    third_rotor_position = get_letter()
 
-
-    machine = EnigmaMachine(0, 0, 0, 0, 0, 0)
+    machine = EnigmaMachine(first_rotor_position, second_rotor_position, third_rotor_position)
     machine.set_plugboard()
     try:
         for event in keyboard.read_loop():
@@ -85,6 +76,18 @@ def enigma(display, led):
                         display.send(alphanumeric)
     except KeyboardInterrupt:
         print("Keyboard reading stopped.")
+
+def get_letter():
+    for event in keyboard.read_loop():
+        if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
+            key = evdev.ecodes.KEY[event.code]  # Get key name
+            if event.value == 1 and key.startswith("KEY_") and len(key)==5:
+                alphanumeric = key[-1]
+                print(alphanumeric)
+                if "A"<=alphanumeric<="Z":
+                    return ord(alphanumeric) - ord('A')
+
+
 
 if __name__ == "__main__":
     display_pipe, enigma_pipe_display = Pipe()
