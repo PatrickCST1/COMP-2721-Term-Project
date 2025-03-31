@@ -6,10 +6,13 @@ from multiprocessing import Process, Pipe
 import RPi.GPIO as GPIO
 from ht16k33 import HT16K33Segment14
 from EnigmaMachine import EnigmaMachine
+import evdev
 
 i2c = I2C(SCL, SDA)
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
+
+keyboard = evdev.InputDevice('/dev/input/by-id/usb-Dell_Dell_Wired_Multimedia_Keyboard-event-kbd')
 
 def display(enigma):
     display_peripheral = HT16K33Segment14(i2c, board=HT16K33Segment14.SPARKFUN_ALPHA)
@@ -50,15 +53,38 @@ def reset(enigma):
 
 def enigma(display, led):
     led.send("bbbb")
-    while True:
-        display.send("    ")
-        machine = EnigmaMachine(0, 0, 0, 0, 0, 0)
-        machine.set_plugboard()
-        string = "APPLE"
-        for letter in string:
-            display.send(machine.encrypt(letter))
-            sleep(1)
+    print(f"Device: {keyboard.name}, {keyboard.phys}")
+    print("Listening for keyboard events...")
+    display.send("    ")
 
+    try:
+        for event in keyboard.read_loop():
+            if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
+                key = evdev.ecodes.KEY[event.code]  # Get key name
+                if event.value == 1 and key.startswith("KEY_") and len(key)==5:
+                    alphanumeric = key[-1]
+                    print(alphanumeric, end="")
+                    if "0" <= alphanumeric <= "9":
+                        display.send(alphanumeric)
+    except KeyboardInterrupt:
+        print("Keyboard reading stopped.")
+
+
+    machine = EnigmaMachine(0, 0, 0, 0, 0, 0)
+    machine.set_plugboard()
+    try:
+        for event in keyboard.read_loop():
+            if event.type == evdev.ecodes.EV_KEY:  # Keyboard event
+                key = evdev.ecodes.KEY[event.code]  # Get key name
+                if event.value == 1 and key.startswith("KEY_") and len(key)==5:
+                    alphanumeric = key[-1]
+                    print(alphanumeric)
+                    if "A"<=alphanumeric<="Z":
+                        display.send(machine.encrypt(alphanumeric))
+                    else:
+                        display.send(alphanumeric)
+    except KeyboardInterrupt:
+        print("Keyboard reading stopped.")
 
 if __name__ == "__main__":
     display_pipe, enigma_pipe_display = Pipe()
